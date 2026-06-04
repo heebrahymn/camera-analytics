@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Activity, BarChart3, Camera, LogOut, Store } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { Activity, BarChart3, Camera, LogOut, Store, FileText } from "lucide-react";
+import { useAuth } from "@/contexts/useAuth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Logo from "./Logo";
@@ -8,6 +8,7 @@ import Logo from "./Logo";
 const nav = [
   { to: "/", label: "Live", icon: Activity, end: true },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/reports", label: "Reports", icon: FileText },
   { to: "/stores", label: "Stores", icon: Store },
   { to: "/cameras", label: "Cameras", icon: Camera },
 ];

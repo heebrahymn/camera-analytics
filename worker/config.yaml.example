@@ -1,0 +1,44 @@
+# ============================================================
+# Carbon Worker — Camera Configuration (EXAMPLE)
+# ============================================================
+# Copy this to config.yaml and fill in your real credentials.
+# Run: python worker.py --config config.yaml
+# ============================================================
+
+cameras:
+
+  - name: "Cam 3 - Channel 301"
+
+    rtsp_url: "rtsp://admin:YOUR_PASSWORD@192.168.0.252:554/Streaming/Channels/301"
+
+    ingest_key: "YOUR_CAMERA_INGEST_KEY_FROM_DASHBOARD"
+
+    ingest_url: "https://YOUR_PROJECT_ID.supabase.co/functions/v1/ingest-events"
+
+    # ── GPT-4o Mini Vision Classifier settings ──────────────────
+    vision_classifier: "gpt4o-mini"
+    openai_api_key: "sk-proj-YOUR_OPENAI_KEY"
+    vision_image_size: 512
+
+    # ── Counting line ──────────────────────────────────────────
+    # Normalised values [0,1] for endpoints x1, y1, x2, y2.
+    line:
+      x1: 0.65
+      y1: 0.53
+      x2: 0.93
+      y2: 0.62
+
+    # ── Region of Interest (ROI) ───────────────────────────────
+    # Normalised values [0,1]: left, top, right, bottom.
+    roi:
+      left:   0.50
+      top:    0.35
+      right:  1.00
+      bottom: 0.85
+
+    # ── Detection tuning ───────────────────────────────────────
+    min_contour_area: 8000
+    line_cross_cooldown_s: 4.0
+    frame_skip: 2
+    reconnect_delay_s: 5.0
+    debug_window: false

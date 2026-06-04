@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
 
   useEffect(() => {
@@ -23,6 +24,10 @@ export default function Auth() {
   const handle = async (mode: "signin" | "signup") => {
     if (!email || password.length < 6) {
       toast.error("Enter a valid email and a password (min 6 chars)");
+      return;
+    }
+    if (mode === "signup" && password !== confirmPassword) {
+      toast.error("Passwords do not match");
       return;
     }
     setLoading(true);
@@ -96,6 +101,10 @@ export default function Auth() {
               <div className="space-y-2">
                 <Label htmlFor="password2">Password</Label>
                 <Input id="password2" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
               </div>
               <Button className="w-full" disabled={loading} onClick={() => handle("signup")}>
                 {loading ? "…" : "Create account"}

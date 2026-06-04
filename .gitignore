@@ -27,3 +27,15 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Worker credentials and assets
+worker/config.yaml
+worker/*.jpg
+worker/__pycache__/
+
+# Camera snapshot images at project root (captured locally — never commit)
+/snapshot_*.jpg
+
+# Scratch / resolved guide files
+*.resolved
+

@@ -12,6 +12,7 @@ import Analytics from "./pages/Analytics";
 import Stores from "./pages/Stores";
 import Cameras from "./pages/Cameras";
 import NotFound from "./pages/NotFound.tsx";
+import Reports from "./pages/Reports.tsx";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ const App = () => (
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Live />} />
               <Route path="/analytics" element={<Analytics />} />
+              <Route path="/reports" element={<Reports />} />
               <Route path="/stores" element={<Stores />} />
               <Route path="/cameras" element={<Cameras />} />
             </Route>

@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownRight, ArrowUpRight, Camera as CamIcon, Car, Store as StoreIcon } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Camera as CamIcon, Car, Store as StoreIcon, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface Store { id: string; name: string; }
 interface Camera { id: string; name: string; store_id: string; status: string; last_seen_at: string | null; }
@@ -22,6 +30,29 @@ function startOfTodayUTC() {
 export default function Live() {
   const { user } = useAuth();
   const qc = useQueryClient();
+
+  const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
+  const [selectedVType, setSelectedVType] = useState<string | null>(null);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [loadingSnapshot, setLoadingSnapshot] = useState(false);
+
+  const handleViewSnapshot = async (path: string, vType?: string | null) => {
+    setSelectedVType(vType || null);
+    setSelectedSnapshot(path);
+    setLoadingSnapshot(true);
+    setSignedUrl(null);
+    try {
+      const { data, error } = await supabase.storage
+        .from("vision-snapshots")
+        .createSignedUrl(path, 300);
+      if (error) throw error;
+      setSignedUrl(data.signedUrl);
+    } catch (err) {
+      console.error("Failed to generate signed URL:", err);
+    } finally {
+      setLoadingSnapshot(false);
+    }
+  };
 
   const stores = useQuery({
     queryKey: ["stores"],
@@ -61,11 +92,19 @@ export default function Live() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vehicle_events")
-        .select("id,direction,occurred_at,camera_id,store_id")
+        .select("id,direction,occurred_at,camera_id,store_id,snapshot_path,v_type")
         .order("occurred_at", { ascending: false })
         .limit(15);
       if (error) throw error;
-      return data as { id: number; direction: "entry" | "exit"; occurred_at: string; camera_id: string; store_id: string }[];
+      return data as {
+        id: number;
+        direction: "entry" | "exit";
+        occurred_at: string;
+        camera_id: string;
+        store_id: string;
+        snapshot_path?: string | null;
+        v_type?: string | null;
+      }[];
     },
   });
 
@@ -94,13 +133,13 @@ export default function Live() {
     return { entries, exits };
   }, [aggs.data]);
 
-  const perStore = useMemo(() => {
+  const perCamera = useMemo(() => {
     const map = new Map<string, { entries: number; exits: number }>();
     for (const r of aggs.data ?? []) {
-      const cur = map.get(r.store_id) ?? { entries: 0, exits: 0 };
+      const cur = map.get(r.camera_id) ?? { entries: 0, exits: 0 };
       cur.entries += r.entries;
       cur.exits += r.exits;
-      map.set(r.store_id, cur);
+      map.set(r.camera_id, cur);
     }
     return map;
   }, [aggs.data]);
@@ -150,30 +189,52 @@ export default function Live() {
             </div>
 
             <div className="grid gap-6 lg:grid-cols-3">
-              <Card className="lg:col-span-2 p-5">
+              <Card className="p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-semibold">By store · today</h2>
+                  <h2 className="font-semibold">By camera · today</h2>
                   <span className="text-xs text-muted-foreground flex items-center gap-2">
                     <span className="pulse-dot" /> Live
                   </span>
                 </div>
-                <div className="divide-y">
+                <div className="space-y-6">
                   {(stores.data ?? []).map((s) => {
-                    const v = perStore.get(s.id) ?? { entries: 0, exits: 0 };
                     const cams = (cameras.data ?? []).filter((c) => c.store_id === s.id);
-                    const online = cams.filter((c) => c.status === "online").length;
                     return (
-                      <div key={s.id} className="flex items-center justify-between py-3">
-                        <div>
-                          <div className="font-medium">{s.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {online}/{cams.length} cameras online
-                          </div>
+                      <div key={s.id} className="space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b">
+                          <StoreIcon className="h-4 w-4 text-muted-foreground" />
+                          <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">{s.name}</h3>
                         </div>
-                        <div className="flex gap-6 text-sm">
-                          <Metric label="In" value={v.entries} tone="success" />
-                          <Metric label="Out" value={v.exits} tone="warning" />
-                          <Metric label="Total" value={v.entries + v.exits} />
+                        <div className="divide-y divide-border/40">
+                          {cams.map((c) => {
+                            const v = perCamera.get(c.id) ?? { entries: 0, exits: 0 };
+                            return (
+                              <div key={c.id} className="flex items-center justify-between py-2.5">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="relative">
+                                    <CamIcon className="h-4 w-4 text-muted-foreground/80" />
+                                    <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-card ${
+                                      c.status === "online" ? "bg-success" : "bg-muted-foreground/40"
+                                    }`} />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="font-medium text-sm text-foreground truncate block">{c.name}</span>
+                                    <span className="text-[10px] text-muted-foreground block capitalize">{c.status}</span>
+                                  </div>
+                                </div>
+                                <div className="flex gap-6 text-sm">
+                                  <Metric label="In" value={v.entries} tone="success" />
+                                  <Metric label="Out" value={v.exits} tone="warning" />
+                                  <Metric label="Total" value={v.entries + v.exits} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {cams.length === 0 && (
+                            <div className="text-sm text-muted-foreground py-2 text-center">
+                              No cameras registered for this store.
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -181,8 +242,8 @@ export default function Live() {
                 </div>
               </Card>
 
-              <Card className="p-5">
-                <h2 className="font-semibold mb-4">Recent events</h2>
+              <Card className="lg:col-span-2 p-5">
+                <h2 className="font-semibold mb-4">Recent car entries and exits</h2>
                 <div className="space-y-2 max-h-[420px] overflow-auto">
                   {(recent.data ?? []).map((e) => {
                     const cam = (cameras.data ?? []).find((c) => c.id === e.camera_id);
@@ -195,19 +256,37 @@ export default function Live() {
                           ) : (
                             <ArrowUpRight className="h-4 w-4 text-warning shrink-0" />
                           )}
-                          <span className="truncate">
-                            {store?.name ?? "—"} · {cam?.name ?? "Camera"}
-                          </span>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="truncate font-medium text-foreground">
+                              {store?.name ?? "—"} · {cam?.name ?? "Camera"}
+                            </span>
+                            {e.v_type && (
+                              <Badge variant="outline" className="h-4 px-1 text-[9px] capitalize shrink-0 font-normal border-muted-foreground/35 text-muted-foreground">
+                                {e.v_type}
+                              </Badge>
+                            )}
+                            {e.snapshot_path && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 rounded-full shrink-0 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                                onClick={() => handleViewSnapshot(e.snapshot_path!, e.v_type)}
+                                title="View snapshot"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                         <span className="text-muted-foreground text-xs shrink-0 ml-2">
-                          {new Date(e.occurred_at).toLocaleTimeString()}
+                          {new Date(e.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {new Date(e.occurred_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                         </span>
                       </div>
                     );
                   })}
                   {(recent.data ?? []).length === 0 && (
                     <div className="text-sm text-muted-foreground py-8 text-center">
-                      No events yet. Once a worker pushes counts, they will appear here in real time.
+                      No car events recorded yet today.
                     </div>
                   )}
                 </div>
@@ -216,6 +295,34 @@ export default function Live() {
           </>
         )}
       </div>
+
+      <Dialog open={!!selectedSnapshot} onOpenChange={(open) => { if (!open) setSelectedSnapshot(null); }}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedVType
+                ? `${selectedVType.charAt(0).toUpperCase()}${selectedVType.slice(1)} Snapshot`
+                : "Vehicle Snapshot"}
+            </DialogTitle>
+            <DialogDescription>
+              Captured when the {selectedVType || "vehicle"} was detected crossing the virtual line.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center p-4 min-h-[250px] bg-secondary/30 rounded-md border overflow-hidden">
+            {loadingSnapshot ? (
+              <span className="text-sm text-muted-foreground">Generating secure link...</span>
+            ) : signedUrl ? (
+              <img
+                src={signedUrl}
+                alt="Vehicle Snapshot"
+                className="max-h-[400px] max-w-full rounded-md object-contain"
+              />
+            ) : (
+              <span className="text-sm text-destructive">Failed to load snapshot</span>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

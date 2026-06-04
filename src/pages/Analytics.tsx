@@ -44,7 +44,8 @@ export default function Analytics() {
     () => startOfDay(subDays(new Date(), range.days - 1)).toISOString(),
     [range.days],
   );
-  const toIso = useMemo(() => endOfDay(new Date()).toISOString(), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const toIso = useMemo(() => endOfDay(new Date()).toISOString(), [rangeKey]);
 
   const stores = useQuery({
     queryKey: ["stores"],

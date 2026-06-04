@@ -1,0 +1,5 @@
+# Carbon Worker — Python dependencies
+opencv-python-headless>=4.9.0  # use opencv-python instead if you need the GUI debug window
+requests>=2.31.0
+pyyaml>=6.0.1
+numpy>=1.26.0

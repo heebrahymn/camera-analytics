@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       cameras: {
@@ -181,8 +206,10 @@ export type Database = {
           id: number
           occurred_at: string
           owner_id: string
+          snapshot_path: string | null
           store_id: string
           track_id: string | null
+          v_type: string | null
         }
         Insert: {
           camera_id: string
@@ -192,8 +219,10 @@ export type Database = {
           id?: number
           occurred_at?: string
           owner_id: string
+          snapshot_path?: string | null
           store_id: string
           track_id?: string | null
+          v_type?: string | null
         }
         Update: {
           camera_id?: string
@@ -203,8 +232,10 @@ export type Database = {
           id?: number
           occurred_at?: string
           owner_id?: string
+          snapshot_path?: string | null
           store_id?: string
           track_id?: string | null
+          v_type?: string | null
         }
         Relationships: [
           {
@@ -358,6 +389,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       camera_status: ["online", "offline", "error", "pending"],
