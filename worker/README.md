@@ -128,12 +128,59 @@ Press `q` to stop.
 
 ---
 
-## Running as a Service (optional)
+## Running as a Service (Background Uptime)
 
-**Linux (systemd):**
+To ensure the worker runs 24/7 in the background, even when you log out or lock your computer, configure it as a system service.
+
+### Windows (Task Scheduler - Recommended)
+
+Using Windows Task Scheduler ensures the worker starts automatically when the system boots up and keeps running when the user session is locked.
+
+#### 1. Setup Helper Scripts
+We provide two script helpers in this directory:
+- `start_worker.bat`: Stays in the worker folder, starts the python script, and pipes all outputs to `worker.log`.
+- `run_hidden.vbs`: A VBScript that launches `start_worker.bat` completely hidden in the background (no visible cmd command prompt window).
+
+#### 2. Create the Scheduled Task
+1. Press `Win + R`, type `taskschd.msc`, and press **Enter** to open Task Scheduler.
+2. Click **Create Task...** on the right sidebar (do *not* choose Create Basic Task).
+3. Under the **General** tab:
+   - **Name**: `Carbon Camera Worker`
+   - **User Account**: Make sure this is your active administrator account.
+   - Select **Run whether user is logged on or not** (this keeps the task running when locked or logged out).
+   - Select **Run with highest privileges** (ensures it is not blocked by permissions).
+4. Under the **Triggers** tab:
+   - Click **New...**
+   - **Begin the task**: Choose **At startup** (runs immediately when the PC starts).
+   - Click **OK**.
+5. Under the **Actions** tab:
+   - Click **New...**
+   - **Action**: Choose **Start a program**.
+   - **Program/script**: Enter `wscript.exe`
+   - **Add arguments**: Enter the absolute path to `run_hidden.vbs` (e.g. `C:\Projects\cameraAnalyticsApp\worker\run_hidden.vbs`).
+   - **Start in**: Enter the absolute path to the directory containing it (e.g. `C:\Projects\cameraAnalyticsApp\worker`).
+   - Click **OK**.
+6. Under the **Conditions** tab:
+   - Uncheck **Start the task only if the computer is on AC power** (to ensure it runs on laptops or UPS battery backups).
+7. Under the **Settings** tab:
+   - Uncheck **Stop the task if it runs longer than** (we want it to run indefinitely).
+   - **If the task fails, restart every**: Check this and set to `1 minute`. Set attempts to `999`.
+8. Click **OK**. You will be prompted to enter your Windows account password to authorize background execution.
+
+#### 3. Monitoring & Controlling the Worker
+- **To View Logs**: Look at `worker/worker.log` in this directory to see real-time status and logs.
+- **To Stop the Worker**: Open Task Scheduler, click **Active Tasks**, locate `Carbon Camera Worker`, and click **End** in the actions menu. Or run:
+  ```cmd
+  taskkill /f /im python.exe
+  ```
+
+---
+
+### Linux (systemd)
+
 ```ini
 [Unit]
-Description=Carbon Camera Worker
+Description=Carbon Camera Analytics Worker
 After=network-online.target
 
 [Service]
@@ -145,7 +192,3 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 ```
-
-**Windows (Task Scheduler):**
-- Create a basic task → trigger: "At startup"
-- Action: `python.exe` with argument `c:\path\to\worker.py --config c:\path\to\config.yaml`
