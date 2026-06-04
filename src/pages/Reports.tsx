@@ -342,8 +342,12 @@ export default function Reports() {
                           <TableCell>{cam?.name || "Camera"}</TableCell>
                           <TableCell>
                             <Badge
-                              variant={e.direction === "entry" ? "success" : "warning"}
-                              className="capitalize font-semibold"
+                              variant="outline"
+                              className={`capitalize font-semibold ${
+                                e.direction === "entry"
+                                  ? "bg-success/10 text-success border-success/20 hover:bg-success/10"
+                                  : "bg-warning/10 text-warning border-warning/20 hover:bg-warning/10"
+                              }`}
                             >
                               {e.direction}
                             </Badge>
