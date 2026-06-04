@@ -162,7 +162,7 @@ export default function Reports() {
         .map((e) => e.snapshot_path)
         .filter((path): path is string => !!path);
 
-      let urlsMap: Record<string, string> = {};
+      const urlsMap: Record<string, string> = {};
       if (paths.length > 0) {
         const { data, error } = await supabase.storage
           .from("vision-snapshots")
