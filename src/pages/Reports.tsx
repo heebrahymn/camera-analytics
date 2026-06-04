@@ -53,6 +53,7 @@ export default function Reports() {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [pdfSignedUrls, setPdfSignedUrls] = useState<Record<string, string>>({});
 
   const handleViewSnapshot = async (path: string, vType?: string | null) => {
     setSelectedVType(vType || null);
@@ -156,7 +157,45 @@ export default function Reports() {
     if (!element) return;
     setIsExporting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // 1. Gather and batch-request signed URLs for all snapshots in the report
+      const paths = (events.data ?? [])
+        .map((e) => e.snapshot_path)
+        .filter((path): path is string => !!path);
+
+      let urlsMap: Record<string, string> = {};
+      if (paths.length > 0) {
+        const { data, error } = await supabase.storage
+          .from("vision-snapshots")
+          .createSignedUrls(paths, 300);
+        if (!error && data) {
+          data.forEach((item) => {
+            if (item.signedUrl) {
+              urlsMap[item.path] = item.signedUrl;
+            }
+          });
+        }
+      }
+      setPdfSignedUrls(urlsMap);
+
+      // 2. Pre-load all cross-origin images in memory to ensure they are fully cached and rendered by html2canvas
+      const imageUrls = Object.values(urlsMap);
+      if (imageUrls.length > 0) {
+        await Promise.all(
+          imageUrls.map((url) => {
+            return new Promise<void>((resolve) => {
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              img.onload = () => resolve();
+              img.onerror = () => resolve(); // resolve anyway to avoid blocking on load failure
+              img.src = url;
+            });
+          })
+        );
+      }
+
+      // Give React brief timeout to apply the src state changes in the off-screen DOM
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
@@ -190,6 +229,7 @@ export default function Reports() {
       console.error("Error exporting PDF:", err);
     } finally {
       setIsExporting(false);
+      setPdfSignedUrls({}); // clear urls map to free memory
     }
   };
 
@@ -550,6 +590,7 @@ export default function Reports() {
                   <th style={{ padding: "6px 8px", color: "#475569", fontWeight: "bold" }}>Direction</th>
                   <th style={{ padding: "6px 8px", color: "#475569", fontWeight: "bold" }}>Type</th>
                   <th style={{ padding: "6px 8px", color: "#475569", fontWeight: "bold" }}>Confidence</th>
+                  <th style={{ padding: "6px 8px", color: "#475569", fontWeight: "bold", textAlign: "right" }}>Snapshot</th>
                 </tr>
               </thead>
               <tbody>
@@ -586,12 +627,30 @@ export default function Reports() {
                       </td>
                       <td style={{ padding: "8px", textTransform: "capitalize" }}>{e.v_type || "car"}</td>
                       <td style={{ padding: "8px" }}>{e.confidence ? `${(e.confidence * 100).toFixed(0)}%` : "—"}</td>
+                      <td style={{ padding: "8px", textAlign: "right" }}>
+                        {e.snapshot_path && pdfSignedUrls[e.snapshot_path] ? (
+                          <img
+                            src={pdfSignedUrls[e.snapshot_path]}
+                            alt="Snapshot"
+                            style={{
+                              height: "28px",
+                              width: "42px",
+                              objectFit: "cover",
+                              borderRadius: "3px",
+                              border: "1px solid #cbd5e1",
+                              display: "inline-block",
+                            }}
+                          />
+                        ) : (
+                          <span style={{ color: "#94a3b8" }}>—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
                 {(events.data ?? []).length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ padding: "24px", textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
+                    <td colSpan={7} style={{ padding: "24px", textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
                       No events recorded for this date.
                     </td>
                   </tr>
