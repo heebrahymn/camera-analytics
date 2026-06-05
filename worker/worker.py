@@ -693,6 +693,7 @@ class CameraWorker:
         # Updated atomically inside _emit_lock to prevent race conditions from
         # concurrent vision-classifier threads emitting in the same direction.
         self._last_emitted_ts: Dict[str, float] = {}
+        self._emitted_tracks: Dict[str, Set[str]] = {"entry": set(), "exit": set()}
         self._emit_lock = threading.Lock()
 
         # Initialize vision classifier if configured
@@ -768,30 +769,63 @@ class CameraWorker:
     ) -> None:
         """
         Runs in a background thread-pool thread.
-        1. Calls the OpenAI vision classifier.
-        2. If the object is confirmed as a vehicle AND the cooldown passes,
+        1. Checks global cooldown and emitted tracks BEFORE calling classifier.
+        2. Calls the OpenAI vision classifier.
+        3. If the object is confirmed as a vehicle AND the cooldown passes,
            uploads the snapshot JPEG to Supabase Storage.
-        3. Emits a VehicleEvent with the snapshot path attached.
+        4. Emits a VehicleEvent with the snapshot path attached.
         Rejected objects and cooldown-suppressed events never touch Storage.
         """
         try:
+            # Check global cooldown and double-emit BEFORE calling the vision classifier
+            with self._emit_lock:
+                # 1. Check if this track has already emitted in this direction
+                if track_id in self._emitted_tracks[direction]:
+                    log.info(
+                        "[%s] Track %s already emitted in direction %s. Suppressing duplicate early.",
+                        self.cfg.name, track_id, direction
+                    )
+                    return
+
+                # 2. Check global cooldown
+                now = time.monotonic()
+                last_emit = self._last_emitted_ts.get(direction, 0.0)
+                gap = now - last_emit
+                if gap < self.cfg.global_cross_cooldown_s:
+                    log.info(
+                        "[%s] Global %s cooldown active (%.1fs < %.1fs) before classification. "
+                        "Suppressing track %s early.",
+                        self.cfg.name, direction, gap,
+                        self.cfg.global_cross_cooldown_s, track_id
+                    )
+                    return
+
             result = self.classifier.classify(crop, self.cfg.name)
             self._consecutive_vision_failures = 0  # reset on success
             if result.is_vehicle:
-                # Apply global per-direction cooldown: prevent double-counting from track-ID churn
+                # Apply global per-direction cooldown and double-emit check after classification
+                # in case another thread emitted in the meantime
                 with self._emit_lock:
+                    if track_id in self._emitted_tracks[direction]:
+                        log.info(
+                            "[%s] Track %s already emitted in direction %s. Suppressing duplicate after classification.",
+                            self.cfg.name, track_id, direction
+                        )
+                        return
+
                     now = time.monotonic()
                     last_emit = self._last_emitted_ts.get(direction, 0.0)
                     gap = now - last_emit
                     if gap < self.cfg.global_cross_cooldown_s:
                         log.info(
-                            "[%s] Global %s cooldown active (%.1fs < %.1fs). "
+                            "[%s] Global %s cooldown active (%.1fs < %.1fs) after classification. "
                             "Suppressing track %s to prevent double-count.",
                             self.cfg.name, direction, gap,
                             self.cfg.global_cross_cooldown_s, track_id
                         )
                         return  # reject — no snapshot upload
                     self._last_emitted_ts[direction] = now
+                    self._emitted_tracks[direction].add(track_id)
 
                 log.info(
                     "[%s] Vision confirmed vehicle (type=%s, confidence=%.2f) for track %s. Emitting event.",
@@ -829,13 +863,16 @@ class CameraWorker:
                 )
             else:
                 log.error("[%s] Error in background vision classification: %s. Emitting event as fail-open.", self.cfg.name, e)
-            # Fail-open: apply global cooldown to avoid flooding on repeated failures
+            # Fail-open: apply global cooldown and double-emit prevention to avoid flooding on repeated failures
             with self._emit_lock:
+                if track_id in self._emitted_tracks[direction]:
+                    return
                 now = time.monotonic()
                 last_emit = self._last_emitted_ts.get(direction, 0.0)
                 if now - last_emit < self.cfg.global_cross_cooldown_s:
                     return
                 self._last_emitted_ts[direction] = now
+                self._emitted_tracks[direction].add(track_id)
             # Upload snapshot for fail-open events (API error) — useful for debugging
             snapshot_path = None
             if self.cfg.store_snapshots:
@@ -1100,7 +1137,29 @@ class CameraWorker:
                                     )
                                 )
                         else:
-                            # Standard behaviour when vision is disabled
+                            # Standard behaviour when vision is disabled (apply global cooldown and double-emit checks)
+                            with self._emit_lock:
+                                # 1. Check double emit
+                                if str(track_id) in self._emitted_tracks[direction]:
+                                    log.info(
+                                        "[%s] Track %s already emitted in direction %s (standard mode). Suppressing duplicate.",
+                                        self.cfg.name, track_id, direction
+                                    )
+                                    continue
+
+                                # 2. Check global cooldown
+                                now = time.monotonic()
+                                last_emit = self._last_emitted_ts.get(direction, 0.0)
+                                if now - last_emit < self.cfg.global_cross_cooldown_s:
+                                    log.info(
+                                        "[%s] Global %s cooldown active (%.1fs < %.1fs) (standard mode). Suppressing track %s.",
+                                        self.cfg.name, direction, now - last_emit, self.cfg.global_cross_cooldown_s, track_id
+                                    )
+                                    continue
+
+                                self._last_emitted_ts[direction] = now
+                                self._emitted_tracks[direction].add(str(track_id))
+
                             self.sender.push(
                                 VehicleEvent(
                                     direction=direction,
@@ -1123,6 +1182,9 @@ class CameraWorker:
         ]
         for tid in stale:
             del self._tracks[tid]
+            with self._emit_lock:
+                self._emitted_tracks["entry"].discard(str(tid))
+                self._emitted_tracks["exit"].discard(str(tid))
 
         # 4. Optional live debug window
         if self.cfg.debug_window:
