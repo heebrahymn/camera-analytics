@@ -779,11 +779,11 @@ class CameraWorker:
         try:
             # Check global cooldown and double-emit BEFORE calling the vision classifier
             with self._emit_lock:
-                # 1. Check if this track has already emitted in this direction
-                if track_id in self._emitted_tracks[direction]:
+                # 1. Check if this track has already emitted in either direction
+                if track_id in self._emitted_tracks["entry"] or track_id in self._emitted_tracks["exit"]:
                     log.info(
-                        "[%s] Track %s already emitted in direction %s. Suppressing duplicate early.",
-                        self.cfg.name, track_id, direction
+                        "[%s] Track %s already emitted. Suppressing duplicate early.",
+                        self.cfg.name, track_id
                     )
                     return
 
@@ -806,10 +806,10 @@ class CameraWorker:
                 # Apply global per-direction cooldown and double-emit check after classification
                 # in case another thread emitted in the meantime
                 with self._emit_lock:
-                    if track_id in self._emitted_tracks[direction]:
+                    if track_id in self._emitted_tracks["entry"] or track_id in self._emitted_tracks["exit"]:
                         log.info(
-                            "[%s] Track %s already emitted in direction %s. Suppressing duplicate after classification.",
-                            self.cfg.name, track_id, direction
+                            "[%s] Track %s already emitted. Suppressing duplicate after classification.",
+                            self.cfg.name, track_id
                         )
                         return
 
@@ -865,7 +865,7 @@ class CameraWorker:
                 log.error("[%s] Error in background vision classification: %s. Emitting event as fail-open.", self.cfg.name, e)
             # Fail-open: apply global cooldown and double-emit prevention to avoid flooding on repeated failures
             with self._emit_lock:
-                if track_id in self._emitted_tracks[direction]:
+                if track_id in self._emitted_tracks["entry"] or track_id in self._emitted_tracks["exit"]:
                     return
                 now = time.monotonic()
                 last_emit = self._last_emitted_ts.get(direction, 0.0)
@@ -1140,10 +1140,10 @@ class CameraWorker:
                             # Standard behaviour when vision is disabled (apply global cooldown and double-emit checks)
                             with self._emit_lock:
                                 # 1. Check double emit
-                                if str(track_id) in self._emitted_tracks[direction]:
+                                if str(track_id) in self._emitted_tracks["entry"] or str(track_id) in self._emitted_tracks["exit"]:
                                     log.info(
-                                        "[%s] Track %s already emitted in direction %s (standard mode). Suppressing duplicate.",
-                                        self.cfg.name, track_id, direction
+                                        "[%s] Track %s already emitted (standard mode). Suppressing duplicate.",
+                                        self.cfg.name, track_id
                                     )
                                     continue
 
