@@ -74,7 +74,7 @@ export default function Live() {
     },
   });
 
-  const today = useMemo(() => startOfTodayUTC(), []);
+  const today = useMemo(() => startOfTodayWAT(), []);
   const aggs = useQuery({
     queryKey: ["aggs-today", today],
     queryFn: async () => {
@@ -153,7 +153,7 @@ export default function Live() {
     <div className="flex flex-col">
       <PageHeader
         title="Live"
-        subtitle="Real-time vehicle counts across all stores · today (UTC)"
+        subtitle="Real-time vehicle counts across all stores · today (WAT)"
         showLogo
       />
       <div className="p-6 space-y-6">
@@ -213,9 +213,8 @@ export default function Live() {
                                 <div className="flex items-center gap-2.5 min-w-0">
                                   <div className="relative">
                                     <CamIcon className="h-4 w-4 text-muted-foreground/80" />
-                                    <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-card ${
-                                      c.status === "online" ? "bg-success" : "bg-muted-foreground/40"
-                                    }`} />
+                                    <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-card ${c.status === "online" ? "bg-success" : "bg-muted-foreground/40"
+                                      }`} />
                                   </div>
                                   <div className="min-w-0">
                                     <span className="font-medium text-sm text-foreground truncate block">{c.name}</span>
