@@ -1099,23 +1099,20 @@ class CameraWorker:
                         occurred_at = datetime.now(timezone.utc).isoformat()
                         
                         if self.classifier is not None:
-                            # Extract the crop safely from the original raw resolution FULL frame
+                            # Extract the crop safely from the original raw resolution ROI
                             x_cnt_proc, y_cnt_proc, bw_cnt_proc, bh_cnt_proc = cv2.boundingRect(cnt)
-                            x_full = int(x_cnt_proc / scale) + roi_x1
-                            y_full = int(y_cnt_proc / scale) + roi_y1
-                            bw_full = int(bw_cnt_proc / scale)
-                            bh_full = int(bh_cnt_proc / scale)
+                            x_cnt = int(x_cnt_proc / scale)
+                            y_cnt = int(y_cnt_proc / scale)
+                            bw_cnt = int(bw_cnt_proc / scale)
+                            bh_cnt = int(bh_cnt_proc / scale)
                             
-                            # Apply a generous padding to capture the full vehicle context beyond the narrow ROI bounds
-                            pad_y = 80
-                            pad_x = 100
-                            h_frame, w_frame = frame.shape[:2]
-                            
-                            y1_crop = max(0, y_full - pad_y)
-                            y2_crop = min(h_frame, y_full + bh_full + pad_y)
-                            x1_crop = max(0, x_full - pad_x)
-                            x2_crop = min(w_frame, x_full + bw_full + pad_x)
-                            object_crop = frame[y1_crop:y2_crop, x1_crop:x2_crop].copy()
+                            pad = 15
+                            h_roi, w_roi = roi_crop.shape[:2]
+                            y1_crop = max(0, y_cnt - pad)
+                            y2_crop = min(h_roi, y_cnt + bh_cnt + pad)
+                            x1_crop = max(0, x_cnt - pad)
+                            x2_crop = min(w_roi, x_cnt + bw_cnt + pad)
+                            object_crop = roi_crop[y1_crop:y2_crop, x1_crop:x2_crop].copy()
                             
                             if object_crop.size > 0:
                                 # Pre-encode to JPEG here (on the stream thread) so the background
