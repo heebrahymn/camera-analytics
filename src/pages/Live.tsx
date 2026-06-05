@@ -279,7 +279,7 @@ export default function Live() {
                           </div>
                         </div>
                         <span className="text-muted-foreground text-xs shrink-0 ml-2">
-                          {new Date(e.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {new Date(e.occurred_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
+                          {new Date(e.occurred_at).toLocaleDateString("en-US", { timeZone: "Africa/Lagos", month: "short", day: "numeric" })} · {new Date(e.occurred_at).toLocaleTimeString("en-US", { timeZone: "Africa/Lagos", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                         </span>
                       </div>
                     );

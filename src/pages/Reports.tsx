@@ -371,7 +371,8 @@ export default function Reports() {
                       return (
                         <TableRow key={e.id}>
                           <TableCell className="font-medium">
-                            {new Date(e.occurred_at).toLocaleTimeString(undefined, {
+                            {new Date(e.occurred_at).toLocaleTimeString("en-US", {
+                              timeZone: "Africa/Lagos",
                               hour: "2-digit",
                               minute: "2-digit",
                               second: "2-digit",
@@ -503,7 +504,7 @@ export default function Reports() {
                 DAILY VEHICLE TRAFFIC REPORT
               </h1>
               <p style={{ fontSize: "13px", color: "#64748b", marginTop: "4px" }}>
-                Generated on {new Date().toLocaleString(undefined, { dateStyle: "long", timeStyle: "medium" })}
+                Generated on {new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos", dateStyle: "long", timeStyle: "medium" })}
               </p>
             </div>
             <img
@@ -606,7 +607,8 @@ export default function Reports() {
                       }}
                     >
                       <td style={{ padding: "8px", fontWeight: "500" }}>
-                        {new Date(e.occurred_at).toLocaleTimeString(undefined, {
+                        {new Date(e.occurred_at).toLocaleTimeString("en-US", {
+                          timeZone: "Africa/Lagos",
                           hour: "2-digit",
                           minute: "2-digit",
                           second: "2-digit",
