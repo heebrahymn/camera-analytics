@@ -21,10 +21,11 @@ interface Store { id: string; name: string; }
 interface Camera { id: string; name: string; store_id: string; status: string; last_seen_at: string | null; }
 interface Agg { store_id: string; camera_id: string; entries: number; exits: number; bucket_start: string; }
 
-function startOfTodayUTC() {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
+function startOfTodayWAT() {
+  const now = new Date();
+  const lagosDateString = now.toLocaleDateString("en-US", { timeZone: "Africa/Lagos" });
+  const lagosStart = new Date(lagosDateString + " 00:00:00 GMT+0100");
+  return lagosStart.toISOString();
 }
 
 export default function Live() {
