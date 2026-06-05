@@ -8,6 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { formatLastSeen } from "@/lib/utils";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -66,6 +67,7 @@ export default function Cameras() {
       if (error) throw error;
       return data as Camera[];
     },
+    refetchInterval: 30000,
   });
 
   const create = useMutation({
@@ -189,10 +191,16 @@ export default function Cameras() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <div className="font-medium">{c.name}</div>
-                    <StatusBadge status={c.status} />
+                    <StatusBadge status={c.status} lastSeenAt={c.last_seen_at} />
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1 truncate">
-                    {store?.name ?? "—"} · {c.location_label || "—"} · {c.rtsp_url}
+                  <div className="text-xs text-muted-foreground mt-1 truncate flex items-center gap-1 flex-wrap">
+                    <span>{store?.name ?? "—"} · {c.location_label || "—"} · {c.rtsp_url}</span>
+                    {c.last_seen_at && (
+                      <>
+                        <span className="text-muted-foreground/60">·</span>
+                        <span className="text-muted-foreground/80 font-medium">Last heartbeat: {formatLastSeen(c.last_seen_at)}</span>
+                      </>
+                    )}
                   </div>
                   <div className="mt-2 flex items-center gap-2">
                     <code className="text-xs bg-secondary border rounded px-2 py-1 font-mono">
@@ -244,13 +252,20 @@ export default function Cameras() {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, lastSeenAt }: { status: string; lastSeenAt: string | null }) {
+  let displayStatus = status;
+  if (status === "online" && lastSeenAt) {
+    const diffSec = (new Date().getTime() - new Date(lastSeenAt).getTime()) / 1000;
+    if (diffSec >= 120) {
+      displayStatus = "offline";
+    }
+  }
   const map: Record<string, { className: string; label: string }> = {
     online:  { className: "bg-success text-success-foreground", label: "Online" },
     offline: { className: "bg-muted text-muted-foreground", label: "Offline" },
     error:   { className: "bg-destructive text-destructive-foreground", label: "Error" },
     pending: { className: "bg-secondary text-secondary-foreground", label: "Pending" },
   };
-  const v = map[status] ?? map.pending;
+  const v = map[displayStatus] ?? map.pending;
   return <Badge className={v.className} variant="secondary">{v.label}</Badge>;
 }

@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatLastSeen } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -73,6 +74,7 @@ export default function Live() {
       if (error) throw error;
       return data as Camera[];
     },
+    refetchInterval: 30000,
   });
 
   const today = useMemo(() => startOfTodayWAT(), []);
@@ -145,8 +147,15 @@ export default function Live() {
     return map;
   }, [aggs.data]);
 
-  const onlineCams = (cameras.data ?? []).filter((c) => c.status === "online").length;
+  const onlineCams = (cameras.data ?? []).filter((c) => {
+    if (c.status !== "online") return false;
+    if (!c.last_seen_at) return false;
+    const lastSeen = new Date(c.last_seen_at).getTime();
+    const diffSec = (new Date().getTime() - lastSeen) / 1000;
+    return diffSec < 120; // Seen within last 2 minutes
+  }).length;
   const totalCams = (cameras.data ?? []).length;
+  const isWorkerRunning = onlineCams > 0;
 
   const noStores = stores.isSuccess && (stores.data?.length ?? 0) === 0;
 
@@ -156,6 +165,25 @@ export default function Live() {
         title="Live"
         subtitle="Real-time vehicle counts across all stores · today (WAT)"
         showLogo
+        actions={
+          totalCams > 0 ? (
+            <Badge
+              variant="outline"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border transition-all duration-300 ${
+                isWorkerRunning
+                  ? "bg-success/15 text-success border-success/35 shadow-[0_0_10px_rgba(34,197,94,0.1)]"
+                  : "bg-destructive/15 text-destructive border-destructive/35"
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full ${isWorkerRunning ? "bg-success animate-pulse" : "bg-destructive"}`} />
+              Worker: {isWorkerRunning ? "Running" : "Stopped"}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="bg-secondary/50 text-muted-foreground border-secondary">
+              No Cameras Configured
+            </Badge>
+          )
+        }
       />
       <div className="p-6 space-y-6">
         {noStores ? (
@@ -203,23 +231,27 @@ export default function Live() {
                     return (
                       <div key={s.id} className="space-y-3">
                         <div className="flex items-center gap-2 pb-2 border-b">
-                          <StoreIcon className="h-4 w-4 text-muted-foreground" />
-                          <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">{s.name}</h3>
+                           <StoreIcon className="h-4 w-4 text-muted-foreground" />
+                           <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">{s.name}</h3>
                         </div>
                         <div className="divide-y divide-border/40">
                           {cams.map((c) => {
                             const v = perCamera.get(c.id) ?? { entries: 0, exits: 0 };
+                            const isOnline = c.status === "online" && c.last_seen_at && (new Date().getTime() - new Date(c.last_seen_at).getTime()) / 1000 < 120;
                             return (
                               <div key={c.id} className="flex items-center justify-between py-2.5">
                                 <div className="flex items-center gap-2.5 min-w-0">
                                   <div className="relative">
                                     <CamIcon className="h-4 w-4 text-muted-foreground/80" />
-                                    <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-card ${c.status === "online" ? "bg-success" : "bg-muted-foreground/40"
+                                    <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-card ${isOnline ? "bg-success" : "bg-muted-foreground/40"
                                       }`} />
                                   </div>
                                   <div className="min-w-0">
                                     <span className="font-medium text-sm text-foreground truncate block">{c.name}</span>
-                                    <span className="text-[10px] text-muted-foreground block capitalize">{c.status}</span>
+                                    <span className="text-[10px] text-muted-foreground block">
+                                      {isOnline ? "Worker active" : "Worker stopped"}
+                                      {c.last_seen_at && ` · ${formatLastSeen(c.last_seen_at)}`}
+                                    </span>
                                   </div>
                                 </div>
                                 <div className="flex gap-6 text-sm">
