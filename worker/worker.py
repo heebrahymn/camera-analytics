@@ -959,14 +959,22 @@ class CameraWorker:
 
         frame_count = 0
         consecutive_failures = 0
-        MAX_FAILURES = 30
 
         while not self._stop.is_set():
+            t0 = time.monotonic()
             ret, frame = cap.read()
+            read_duration = time.monotonic() - t0
+
             if not ret:
+                # If a read failure took a long time (e.g. > 2.0 seconds), it was a socket timeout.
+                # Reconnect immediately rather than waiting for consecutive failure counts.
+                if read_duration > 2.0:
+                    log.warning("[%s] stream read timeout (took %.2fs), reconnecting immediately", self.cfg.name, read_duration)
+                    break
+
                 consecutive_failures += 1
-                if consecutive_failures >= MAX_FAILURES:
-                    log.warning("[%s] too many read failures, reconnecting", self.cfg.name)
+                if consecutive_failures >= 5:
+                    log.warning("[%s] too many consecutive read failures (%d), reconnecting", self.cfg.name, consecutive_failures)
                     break
                 time.sleep(0.1)
                 continue
