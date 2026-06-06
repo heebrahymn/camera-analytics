@@ -787,16 +787,25 @@ class CameraWorker:
                     )
                     return
 
-                # 2. Check global cooldown
+                # 2. Check global cooldown (same direction & opposite direction)
                 now = time.monotonic()
-                last_emit = self._last_emitted_ts.get(direction, 0.0)
-                gap = now - last_emit
+                gap = now - self._last_emitted_ts.get(direction, 0.0)
                 if gap < self.cfg.global_cross_cooldown_s:
                     log.info(
                         "[%s] Global %s cooldown active (%.1fs < %.1fs) before classification. "
                         "Suppressing track %s early.",
                         self.cfg.name, direction, gap,
                         self.cfg.global_cross_cooldown_s, track_id
+                    )
+                    return
+
+                opp_dir = "exit" if direction == "entry" else "entry"
+                opp_gap = now - self._last_emitted_ts.get(opp_dir, 0.0)
+                if opp_gap < 3.0:
+                    log.info(
+                        "[%s] Cross-direction global cooldown active (%.1fs < 3.0s) before classification. "
+                        "Suppressing track %s early.",
+                        self.cfg.name, opp_gap, track_id
                     )
                     return
 
@@ -814,8 +823,7 @@ class CameraWorker:
                         return
 
                     now = time.monotonic()
-                    last_emit = self._last_emitted_ts.get(direction, 0.0)
-                    gap = now - last_emit
+                    gap = now - self._last_emitted_ts.get(direction, 0.0)
                     if gap < self.cfg.global_cross_cooldown_s:
                         log.info(
                             "[%s] Global %s cooldown active (%.1fs < %.1fs) after classification. "
@@ -824,6 +832,17 @@ class CameraWorker:
                             self.cfg.global_cross_cooldown_s, track_id
                         )
                         return  # reject — no snapshot upload
+
+                    opp_dir = "exit" if direction == "entry" else "entry"
+                    opp_gap = now - self._last_emitted_ts.get(opp_dir, 0.0)
+                    if opp_gap < 3.0:
+                        log.info(
+                            "[%s] Cross-direction global cooldown active (%.1fs < 3.0s) after classification. "
+                            "Suppressing track %s to prevent double-count.",
+                            self.cfg.name, opp_gap, track_id
+                        )
+                        return  # reject
+
                     self._last_emitted_ts[direction] = now
                     self._emitted_tracks[direction].add(track_id)
 
@@ -868,8 +887,12 @@ class CameraWorker:
                 if track_id in self._emitted_tracks["entry"] or track_id in self._emitted_tracks["exit"]:
                     return
                 now = time.monotonic()
-                last_emit = self._last_emitted_ts.get(direction, 0.0)
-                if now - last_emit < self.cfg.global_cross_cooldown_s:
+                gap = now - self._last_emitted_ts.get(direction, 0.0)
+                if gap < self.cfg.global_cross_cooldown_s:
+                    return
+                opp_dir = "exit" if direction == "entry" else "entry"
+                opp_gap = now - self._last_emitted_ts.get(opp_dir, 0.0)
+                if opp_gap < 3.0:
                     return
                 self._last_emitted_ts[direction] = now
                 self._emitted_tracks[direction].add(track_id)
@@ -1155,13 +1178,22 @@ class CameraWorker:
                                     )
                                     continue
 
-                                # 2. Check global cooldown
+                                # 2. Check global cooldown (same direction & opposite direction)
                                 now = time.monotonic()
-                                last_emit = self._last_emitted_ts.get(direction, 0.0)
-                                if now - last_emit < self.cfg.global_cross_cooldown_s:
+                                gap = now - self._last_emitted_ts.get(direction, 0.0)
+                                if gap < self.cfg.global_cross_cooldown_s:
                                     log.info(
                                         "[%s] Global %s cooldown active (%.1fs < %.1fs) (standard mode). Suppressing track %s.",
-                                        self.cfg.name, direction, now - last_emit, self.cfg.global_cross_cooldown_s, track_id
+                                        self.cfg.name, direction, gap, self.cfg.global_cross_cooldown_s, track_id
+                                    )
+                                    continue
+
+                                opp_dir = "exit" if direction == "entry" else "entry"
+                                opp_gap = now - self._last_emitted_ts.get(opp_dir, 0.0)
+                                if opp_gap < 3.0:
+                                    log.info(
+                                        "[%s] Cross-direction global cooldown active (%.1fs < 3.0s) (standard mode). Suppressing track %s.",
+                                        self.cfg.name, opp_gap, track_id
                                     )
                                     continue
 
